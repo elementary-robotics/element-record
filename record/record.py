@@ -8,6 +8,7 @@ from threading import Thread
 import time
 import msgpack
 import os
+import matplotlib.pyplot as plt
 
 # Where to store temporary recordings
 TEMP_RECORDING_LOC = "/shared"
@@ -241,7 +242,7 @@ def list_recordings(data):
 
     return Response(recordings, serialize=True)
 
-def get_recording(data):
+def _get_recording(data):
     '''
     Returns the contents of a recording. Takes a msgpack serialized
     request object with the following fields:
@@ -250,12 +251,14 @@ def get_recording(data):
     start: start entry index
     stop: stop entry index
     msgpack: if we should use msgpack to deserialize values, assumed false
+
+    Will return a Response() type on error, else a list of all items
+    in the recording.
     '''
     if (("name" not in data) or (type(data["name"]) is not str)):
         return Response(err_code=1, err_str="Name is required", serialize=True)
 
     name = data["name"]
-
 
     file = None
     for folder in [PERM_RECORDING_LOC, TEMP_RECORDING_LOC]:
@@ -306,7 +309,159 @@ def get_recording(data):
         if ((stop_idx != -1) and (i >= stop_idx)):
             break
 
-    return Response(response_items, serialize=True)
+    return response_items
+
+def get_recording(data):
+    '''
+    Returns the contents of a recording. Takes a msgpack serialized
+    request object with the following fields:
+
+    name: required recording name
+    start: start entry index
+    stop: stop entry index
+    msgpack: if we should use msgpack to deserialize values, assumed false
+    '''
+
+    # Load the recording using the function we share with plot_recording
+    result = _get_recording(data)
+    if type(result) is not list:
+        return result
+    else:
+        return Response(result, serialize=True)
+
+def plot_recording(data):
+    '''
+    Makes a plot of the recording. Takes a msgpack-serialized JSON
+    object with the following fields
+    name : required recording name
+    plots: list of plots to make, where each item in the list is a list as well.
+        Each item in the plots list is a tuple, with values:
+            - 0 : lambda function to perform on the data. The data will be
+                    passed to the lambda as a dictionary named `x`
+            - 1 : list of keys on which to perform the lambda function
+            - 2 : optional label
+
+        An example plots field would look like:
+            "plots": [
+                [
+                    ["x[0]", ["joint_0", "joint_1"], "label0"],
+                ],
+                [
+                    ["x[1]", ["joint_0", "joint_1"], "label1"],
+                    ["x[2]", ["joint_0", "joint_1"], "label2"],
+                ],
+            ]
+    start: Entry index to start the plot at
+    stop: Entry index to stop the plot at
+    msgpack: Whether or not to use msgpack to deserialize each key on
+        readback from the recording. Default false
+    save: Optional, if true will save an image of each plot, default false
+    show: Optional, default true, will show the plots in an interactive
+        fashion
+    perm: Optional, default false. If true will save in the permanent
+        file location, else temporary
+    x: Optional lambda for converting an entry into a timestamp. If not
+        passed, will use the redis timestamp. If passed, will be a
+        lambda for an entry lambda entry: ... where the user supplies ...
+        to convert the entry into an x-label
+    '''
+
+    # Load the recording. If we failed to load it just return that error
+    result = _get_recording(data)
+    if type(result) is not list:
+        return result
+
+    # Get the number of results
+    n_results = len(result)
+    if (n_results == 0):
+        return Respose(err_code=4, err_str="0 results for recording", serialize=True)
+
+    # We should have a list of all of the entries that we care about seeing
+    #   and now for each entry need to go ahead and run all of the lambdas
+    if ("plots" not in data) or (type(data["plots"]) is not list):
+        return Response(err_code=5, err_str="Plots must be specified", serialize=True)
+
+    if ("x" in data):
+        try:
+            x_lambda = eval("lambda entry: " + data["x"])
+            x_data = [x_lambda(entry[1]) for entry in result]
+            x_label = str(data["x"])
+        except:
+            return Response(err_code=6, err_str="Unable to convert {} to x data lambda".format(data["x"]))
+    else:
+        x_data = [int(entry[0].split('-')[0]) for entry in result]
+        x_label = "Redis Timestamp"
+
+    # Create the x-label for the data. If none is passed then we'll
+    #   just use the redis timestamp, otherwise the user will give us a lambda
+    #   for an entire
+
+    # Convert the input data to lambdas
+    figures = []
+    for plot_n, plot in enumerate(plots):
+
+        # List of lambdas to run
+        lambdas = []
+        total_lines = 0
+
+        # Make the lambda
+        for val in plot:
+
+            # Make sure the length of the array is proper
+            if ((len(val) < 2) or (len(val) > 3)):
+                return Response(err_code=6, "Each plot value should have 2 or 3 items", serialize=True)
+
+            # Try to make the lambda from the first one
+            try:
+                lamb = eval("lambda x: " + val[0])
+            except:
+                return Response(err_code=7, "Unable to make lambda from {}".format(val[0]), serialize=True)
+
+            # Make sure each key exists in the first data item
+            for key in val[1]:
+                if key not in result[0]:
+                    return Response(err_code=8, "Key {} not in data".format(key), serialize=True)
+
+            # Add the number of keys in this lambda to the total number of lines
+            total_lines += len(keys)
+
+            # Get the label
+            if len(val) == 3:
+                label = str(val[2])
+            else:
+                label = str(val[0])
+
+            lambdas.append((lamb, val[1], label))
+
+        # Now we want to preallocate the data for the plot. It should be a
+        #   matrix that's n-dimensional by lambda-key pair and entry
+        data = np.zeros(total_lines, n_results)
+
+        # And finally we want to loop over all of the data
+        for i, result in enumerate(n_results):
+
+            idx = 0
+            for (l, keys, label) in lambdas:
+                for key in keys:
+                    data[idx][i] = l(result[1][key])
+                    idx += 1
+
+        # Now, we can go ahead and make the figure
+        fig = plt.figure()
+        figures.append(fig)
+
+        # Plot all of the lines
+        idx = 0
+        for (l, keys, label) in lambdas:
+            for key in keys:
+                fig.plot(x_data, data[idx,:], label=label)
+
+        # Make the title and x label
+        fig.title("Plot {}".format(plot_n))
+        fig.xlabel(x_label)
+
+    # Show the plots
+    plt.show()
 
 
 if __name__ == '__main__':
@@ -316,4 +471,5 @@ if __name__ == '__main__':
     elem.command_add("wait", wait_recording, timeout=60000, deserialize=True)
     elem.command_add("list", list_recordings, timeout=1000)
     elem.command_add("get", get_recording, timeout=1000, deserialize=True)
+    elem.command_add("plot", get_recording, timeout=1000, deserialize=True)
     elem.command_loop()
