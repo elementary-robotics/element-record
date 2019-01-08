@@ -15,6 +15,9 @@ TEMP_RECORDING_LOC = "/shared"
 # Where to store permanent recordings
 PERM_RECORDING_LOC = "/recordings"
 
+# Recording extension
+RECORDING_EXTENSION = ".atomrec"
+
 # Default number of seconds to record for
 DEFAULT_N_SEC = 10
 
@@ -40,7 +43,7 @@ def record_fn(name, n_entries, n_sec, perm, element, stream):
 
     # Open the file for the recording
     filename = os.path.join(
-        PERM_RECORDING_LOC if perm else TEMP_RECORDING_LOC, name + '.atomrec')
+        PERM_RECORDING_LOC if perm else TEMP_RECORDING_LOC, name + RECORDING_EXTENSION)
     try:
         record_file = open(filename, 'wb')
     except:
@@ -205,9 +208,35 @@ def wait_recording(data):
 
     return Response("Returned after {} seconds".format(stop_time - start_time))
 
+def list_recordings(data):
+    '''
+    Returns a list of all recordings in the system
+    '''
+
+    recordings = []
+
+    # Loop over all locations
+    for folder in [PERM_RECORDING_LOC, TEMP_RECORDING_LOC]:
+
+        # If the folder doesn't exist, just move on
+        if not os.path.exists(folder):
+            continue
+
+        # Loop over all folders in the location
+        for filename in os.listdir(folder):
+
+            # If it ends with our extension, then add it
+            if filename.endswith(RECORDING_EXTENSION):
+                recordings.append(filename.strip(RECORDING_EXTENSION))
+
+    return Response(recordings, serialize=True)
+
+
+
 if __name__ == '__main__':
     elem = Element("record")
     elem.command_add("start", start_recording, timeout=1000, deserialize=True)
     elem.command_add("stop", stop_recording, timeout=1000, deserialize=True)
     elem.command_add("wait", wait_recording, timeout=60000, deserialize=True)
+    elem.command_add("list", list_recordings, timeout=1000)
     elem.command_loop()
