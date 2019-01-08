@@ -6,6 +6,8 @@ from atom import Element
 from atom.messages import Response, LogLevel
 from threading import Thread
 import time
+import msgpack
+import os
 
 # Where to store temporary recordings
 TEMP_RECORDING_LOC = "/shared"
@@ -37,26 +39,25 @@ def record_fn(name, n_entries, n_sec, perm, element, stream):
     record_elem = Element("record_" + name)
 
     # Open the file for the recording
-    filename = "{}/{}".format(
-        PERM_RECORDING_LOC if perm else TEMP_RECORDING_LOC, name)
+    filename = os.path.join(
+        PERM_RECORDING_LOC if perm else TEMP_RECORDING_LOC, name + '.atomrec')
     try:
         record_file = open(filename, 'wb')
     except:
         record_elem.log(
-            LogLevel.ERROR, "Unable to open file {}".format(filename))
+            LogLevel.ERR, "Unable to open file {}".format(filename))
         del active_recordings[name]
         return
 
     # At the outer loop, we want to loop until we've been cancelled
     last_id = "$"
     intervals = 0
+    entries_read = 0
     while name in active_recordings:
 
         # Read the data
-        data = record_elem.read_since(element, stream, last_id, n=n_entries, block=BLOCK_MS)
-
-        # ... Process the data ...
-        print(data)
+        data = record_elem.entry_read_since(element, stream, last_id, n=n_entries, block=BLOCK_MS)
+        entries_read += len(data)
 
         # We're going to pack up each entry into a msgpack item and
         #   then write it to the file. If it's already msgpack'd
@@ -84,6 +85,9 @@ def record_fn(name, n_entries, n_sec, perm, element, stream):
         #   making the next call
         time.sleep(POLL_INTERVAL)
 
+        # And update the last ID
+        last_id = data[-1]["id"]
+
     # Once we're out of here we want to note that we're no longer
     #   active in the global system
     thread = active_recordings.pop(name)
@@ -92,7 +96,8 @@ def record_fn(name, n_entries, n_sec, perm, element, stream):
     record_file.close()
 
     # And log that we completed the recording
-    record_elem.log(LogLevel.INFO, "Finished recording {}".format(name))
+    record_elem.log(LogLevel.INFO, "Finished recording {} with {} entries read".format(
+        name, entries_read))
 
 
 def start_recording(data):
@@ -112,15 +117,15 @@ def start_recording(data):
 
     # Make sure we got a name
     if ("name" not in data) or (type(data["name"]) is not str):
-        return Response(err_code=1, err_string="name must be in data")
+        return Response(err_code=1, err_str="name must be in data", serialize=True)
 
     # Make sure we got an element
     if ("e" not in data) or (type(data["e"]) is not str):
-        return Response(err_code=2, err_string="element must be in data")
+        return Response(err_code=2, err_str="element must be in data", serialize=True)
 
     # Make sure we got a stream
     if ("s" not in data) or (type(data["s"]) is not str):
-        return Response(err_code=3, err_string="stream must be in data")
+        return Response(err_code=3, err_str="stream must be in data", serialize=True)
 
     # Get the name
     name = data["name"]
@@ -129,7 +134,7 @@ def start_recording(data):
 
     # Check that the name is not in use
     if name in active_recordings:
-        return Response(err_code=4, err_string="Name {} already in use".format(name))
+        return Response(err_code=4, err_str="Name {} already in use".format(name), serialize=True)
 
     n_entries = None
     n_sec = DEFAULT_N_SEC
@@ -139,9 +144,14 @@ def start_recording(data):
     if ("n" in data) and (type(data["n"]) is int):
         n_entries = data["n"]
     if ("t" in data) and (type(data["t"]) is int):
-        n_sec = t
-    if ("p" in data) and (type(data["p"] is bool)):
+        n_sec = data["t"]
+    if ("p" in data) and (type(data["p"]) is bool):
         perm = data["p"]
+
+        # If we have a permanent data request, make sure the user has
+        #   mounted a permanent location
+        if perm and not os.path.exists(PERM_RECORDING_LOC):
+            return Response(err_code=5, err_str="Please mount {} in your docker-compose file".format(PERM_RECORDING_LOC), serialize=True)
 
     # Spawn a new thread that will go ahead and do the recording
     thread = Thread(target=record_fn, args=(name, n_entries, n_sec, perm, element, stream,), daemon=True)
@@ -168,7 +178,7 @@ def stop_recording(data):
 
     # Make sure the recording is active
     if data not in active_recordings:
-        return Response(err_code=1, err_string="Recording {} not active".format(data))
+        return Response(err_code=1, err_str="Recording {} not active".format(data), serialize=True)
 
     # Note the thread and delete it from the active recordings object
     thread = active_recordings.pop(data)
@@ -187,7 +197,7 @@ def wait_recording(data):
 
     # Make sure the recording is active
     if data not in active_recordings:
-        return Response(err_code=1, err_string="Recording {} not active".format(data))
+        return Response(err_code=1, err_str="Recording {} not active".format(data), serialize=True)
 
     start_time = time.time()
     active_recordings[data].join()
