@@ -60,6 +60,16 @@ def record_fn(name, n_entries, n_sec, perm, element, stream):
 
         # Read the data
         data = record_elem.entry_read_since(element, stream, last_id, n=n_entries, block=BLOCK_MS)
+
+        # If we got no data, then we should finish up
+        if len(data) == 0:
+            record_elem.log(
+                LogLevel.ERR,
+                "Recording {}: no data after {} entries read!".format(
+                    name,
+                    entries_read))
+            break
+
         entries_read += len(data)
 
         # We're going to pack up each entry into a msgpack item and
