@@ -394,7 +394,10 @@ def plot_recording(data):
             return Response(err_code=6, err_str="Unable to convert {} to x data lambda".format(data["x"]))
     else:
         x_data = [int(entry[0].split('-')[0]) for entry in result]
-        x_label = "Redis Timestamp"
+        x_label = "Redis Timestamp (ms)"
+
+    x_data = np.array(x_data)
+    x_data -= x_data[0]
 
     # Create the x-label for the data. If none is passed then we'll
     #   just use the redis timestamp, otherwise the user will give us a lambda
