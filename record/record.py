@@ -243,31 +243,68 @@ def list_recordings(data):
 
 def get_recording(data):
     '''
-    Returns the contents of a recording. Will load the recording
-    from disk and deserialize it from how we had it stored. Data should
-    be a msgpack'd string of the recording name
+    Returns the contents of a recording. Takes a msgpack serialized
+    request object with the following fields:
+
+    name: required recording name
+    start: start entry index
+    stop: stop entry index
+    msgpack: if we should use msgpack to deserialize values, assumed false
     '''
+    if (("name" not in data) or (type(data["name"]) is not str)):
+        return Response(err_code=1, err_str="Name is required", serialize=True)
+
+    name = data["name"]
+
+
     file = None
     for folder in [PERM_RECORDING_LOC, TEMP_RECORDING_LOC]:
-        filename = os.path.join(folder, data + RECORDING_EXTENSION)
+        filename = os.path.join(folder, name + RECORDING_EXTENSION)
         if os.path.exists(filename):
             try:
                 file = open(filename, 'rb', buffering=0)
                 break
             except:
-                return Response(err_code=1, err_str="Failed to open file {}".format(filename))
+                return Response(err_code=2, err_str="Failed to open file {}".format(filename), serialize=True)
 
     # Make sure we found the file
     if file is None:
-        return Response(err_code=2, err_str="No recording {}".format(data))
+        return Response(err_code=3, err_str="No recording {}".format(name), serialize=True)
+
+    start_idx = 0
+    stop_idx = -1
+    use_msgpack = False
+
+    if ("start" in data) and (type(data["start"]) is int):
+        start_idx = data["start"]
+    if ("stop" in data) and (type(data["stop"]) is int):
+        stop_idx = data["stop"]
+    if ("msgpack" in data) and (type(data["msgpack"]) is bool):
+        use_msgpack = data["msgpack"]
 
     # Now, we want to loop over the file. Note that when we packed the file
     #   we packed it as individual msgpack objects with no padding/association
     #   between them so we need to use the msgpack streaming API
     unpacker = msgpack.Unpacker(file, raw=False)
     response_items = []
-    for unpacked in unpacker:
-        response_items.append(unpacked)
+    for i, unpacked in enumerate(unpacker):
+        if (i >= start_idx):
+
+            # Make the
+            repacked = (unpacked["id"], {})
+
+            # If we should use msgpack to deserialize
+            for k in unpacked:
+                if k != "id":
+                    if use_msgpack:
+                        repacked[1][k] = msgpack.unpackb(unpacked[k], raw=False)
+                    else:
+                        repacked[1][k] = unpacked[k]
+
+            response_items.append(repacked)
+
+        if ((stop_idx != -1) and (i >= stop_idx)):
+            break
 
     return Response(response_items, serialize=True)
 
