@@ -75,10 +75,11 @@ def record_fn(name, n_entries, n_sec, perm, element, stream):
         # We're going to pack up each entry into a msgpack item and
         #   then write it to the file. If it's already msgpack'd
         #   that's totally fine, this will just pack up the keys and ID
-        packed_data = msgpack.packb(data, use_bin_type=True)
+        for entry in data:
+            packed_data = msgpack.packb(entry, use_bin_type=True)
 
-        # Write the packed data to file
-        record_file.write(packed_data)
+            # Write the packed data to file
+            record_file.write(packed_data)
 
         # If n_entries is not none then we want to subtract
         #   off the number of entries left and perhaps break out
@@ -222,7 +223,6 @@ def list_recordings(data):
     '''
     Returns a list of all recordings in the system
     '''
-
     recordings = []
 
     # Loop over all locations
@@ -241,6 +241,35 @@ def list_recordings(data):
 
     return Response(recordings, serialize=True)
 
+def get_recording(data):
+    '''
+    Returns the contents of a recording. Will load the recording
+    from disk and deserialize it from how we had it stored. Data should
+    be a msgpack'd string of the recording name
+    '''
+    file = None
+    for folder in [PERM_RECORDING_LOC, TEMP_RECORDING_LOC]:
+        filename = os.path.join(folder, data + RECORDING_EXTENSION)
+        if os.path.exists(filename):
+            try:
+                file = open(filename, 'rb', buffering=0)
+                break
+            except:
+                return Response(err_code=1, err_str="Failed to open file {}".format(filename))
+
+    # Make sure we found the file
+    if file is None:
+        return Response(err_code=2, err_str="No recording {}".format(data))
+
+    # Now, we want to loop over the file. Note that when we packed the file
+    #   we packed it as individual msgpack objects with no padding/association
+    #   between them so we need to use the msgpack streaming API
+    unpacker = msgpack.Unpacker(file, raw=False)
+    response_items = []
+    for unpacked in unpacker:
+        response_items.append(unpacked)
+
+    return Response(response_items, serialize=True)
 
 
 if __name__ == '__main__':
@@ -249,4 +278,5 @@ if __name__ == '__main__':
     elem.command_add("stop", stop_recording, timeout=1000, deserialize=True)
     elem.command_add("wait", wait_recording, timeout=60000, deserialize=True)
     elem.command_add("list", list_recordings, timeout=1000)
+    elem.command_add("get", get_recording, timeout=1000, deserialize=True)
     elem.command_loop()
