@@ -9,6 +9,7 @@ import time
 import msgpack
 import os
 import matplotlib.pyplot as plt
+import numpy as np
 
 # Where to store temporary recordings
 TEMP_RECORDING_LOC = "/shared"
@@ -409,18 +410,18 @@ def plot_recording(data):
 
             # Make sure the length of the array is proper
             if ((len(val) < 2) or (len(val) > 3)):
-                return Response(err_code=6, "Each plot value should have 2 or 3 items", serialize=True)
+                return Response(err_code=7, err_str="Each plot value should have 2 or 3 items", serialize=True)
 
             # Try to make the lambda from the first one
             try:
                 lamb = eval("lambda x: " + val[0])
             except:
-                return Response(err_code=7, "Unable to make lambda from {}".format(val[0]), serialize=True)
+                return Response(err_code=8, err_str="Unable to make lambda from {}".format(val[0]), serialize=True)
 
             # Make sure each key exists in the first data item
             for key in val[1]:
                 if key not in result[0]:
-                    return Response(err_code=8, "Key {} not in data".format(key), serialize=True)
+                    return Response(err_code=9, err_str="Key {} not in data".format(key), serialize=True)
 
             # Add the number of keys in this lambda to the total number of lines
             total_lines += len(keys)

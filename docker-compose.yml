@@ -12,6 +12,16 @@ services:
           nocopy: true
     command: ./launch.sh
 
+  robot:
+    image: elementaryrobotics/element-robot
+    volumes:
+      - type: volume
+        source: shared
+        target: /shared
+        volume:
+          nocopy: true
+    command: launch_sim.sh
+
   record:
     build:
       context: .
@@ -27,6 +37,9 @@ services:
       - "nucleus"
     environment:
       - "GRAPHICS=1"
+    ports:
+      - 6080:6080
+    command: tail -f /dev/null
 
 volumes:
   shared:
