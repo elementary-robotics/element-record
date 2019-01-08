@@ -12,7 +12,7 @@ services:
           nocopy: true
     command: ./launch.sh
 
-  element:
+  record:
     build:
       context: .
       dockerfile: Dockerfile
@@ -22,9 +22,11 @@ services:
         target: /shared
         volume:
           nocopy: true
+      - ".:/code"
     depends_on:
       - "nucleus"
-    command: tail -f /dev/null
+    environment:
+      - "GRAPHICS=1"
 
 volumes:
   shared:

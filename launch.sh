@@ -6,4 +6,4 @@ if [ ${GRAPHICS} ]; then
 fi
 
 # TODO: launch your element and anything else needed here.
-echo "Hello, world!"
+python3 record/record.py
