@@ -382,6 +382,9 @@ def plot_recording(data):
     if ("plots" not in data) or (type(data["plots"]) is not list):
         return Response(err_code=5, err_str="Plots must be specified", serialize=True)
 
+    # Note the plots
+    plots = data["plots"]
+
     if ("x" in data):
         try:
             x_lambda = eval("lambda entry: " + data["x"])
@@ -420,11 +423,11 @@ def plot_recording(data):
 
             # Make sure each key exists in the first data item
             for key in val[1]:
-                if key not in result[0]:
+                if key not in result[0][1]:
                     return Response(err_code=9, err_str="Key {} not in data".format(key), serialize=True)
 
             # Add the number of keys in this lambda to the total number of lines
-            total_lines += len(keys)
+            total_lines += len(val[1])
 
             # Get the label
             if len(val) == 3:
@@ -436,10 +439,10 @@ def plot_recording(data):
 
         # Now we want to preallocate the data for the plot. It should be a
         #   matrix that's n-dimensional by lambda-key pair and entry
-        data = np.zeros(total_lines, n_results)
+        data = np.zeros((total_lines, n_results))
 
         # And finally we want to loop over all of the data
-        for i, result in enumerate(n_results):
+        for i, result in enumerate(result):
 
             idx = 0
             for (l, keys, label) in lambdas:
@@ -455,14 +458,16 @@ def plot_recording(data):
         idx = 0
         for (l, keys, label) in lambdas:
             for key in keys:
-                fig.plot(x_data, data[idx,:], label=label)
+                plt.plot(x_data, data[idx,:], label=label)
 
         # Make the title and x label
-        fig.title("Plot {}".format(plot_n))
-        fig.xlabel(x_label)
+        plt.title("Plot {}".format(plot_n))
+        plt.xlabel(x_label)
 
-    # Show the plots
+    # Draw the new plot
     plt.show()
+
+    return Response("Success", serialize=True)
 
 
 if __name__ == '__main__':
@@ -472,5 +477,8 @@ if __name__ == '__main__':
     elem.command_add("wait", wait_recording, timeout=60000, deserialize=True)
     elem.command_add("list", list_recordings, timeout=1000)
     elem.command_add("get", get_recording, timeout=1000, deserialize=True)
-    elem.command_add("plot", get_recording, timeout=1000, deserialize=True)
+    elem.command_add("plot", plot_recording, timeout=60000, deserialize=True)
+
+    # Want to launch the plot thread s.t. our plot API can return quickly
+
     elem.command_loop()
