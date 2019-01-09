@@ -3,6 +3,7 @@ version: "3.2"
 services:
 
   nucleus:
+    container_name: record-nucleus
     image: elementaryrobotics/nucleus
     volumes:
       - type: volume
@@ -13,6 +14,7 @@ services:
     command: ./launch.sh
 
   robot:
+    container_name: record-robot
     image: elementaryrobotics/element-robot
     volumes:
       - type: volume
@@ -20,9 +22,10 @@ services:
         target: /shared
         volume:
           nocopy: true
-    command: launch_sim.sh
+    command: tail -f /dev/null
 
   record:
+    container_name: record-record
     build:
       context: .
       dockerfile: Dockerfile
@@ -40,7 +43,6 @@ services:
     environment:
       - "DISPLAY"
       - "QT_X11_NO_MITSHM=1"
-    command: tail -f /dev/null
 
 volumes:
   shared:
