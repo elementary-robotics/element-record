@@ -460,12 +460,12 @@ def plot_recording(data):
         to_plot = np.zeros((total_lines, n_results))
 
         # And finally we want to loop over all of the data
-        for i, result in enumerate(result):
+        for i, val in enumerate(result):
 
             idx = 0
             for (l, keys, label) in lambdas:
                 for key in keys:
-                    to_plot[idx][i] = l(result[1][key])
+                    to_plot[idx][i] = l(val[1][key])
                     idx += 1
 
         # Now, we can go ahead and make the figure
