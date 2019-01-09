@@ -33,12 +33,13 @@ services:
         volume:
           nocopy: true
       - ".:/code"
+      - ".:/recordings"
+      - "/tmp/.X11-unix:/tmp/.X11-unix:rw"
     depends_on:
       - "nucleus"
     environment:
-      - "GRAPHICS=1"
-    ports:
-      - 6080:6080
+      - "DISPLAY"
+      - "QT_X11_NO_MITSHM=1"
     command: tail -f /dev/null
 
 volumes:

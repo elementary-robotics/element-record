@@ -125,7 +125,7 @@ def start_recording(data):
     #   n: Optional number of entries to record for. If omitted will default
     #           to default time. If both time and n are specified, n will
     #           take precedence
-    #   p: Optional boolean to make the recording persistent/permanent.
+    #   perm: Optional boolean to make the recording persistent/permanent.
     #           Will store the recording in a different location if so
     #   e: Required element name
     #   s: Required stream name
@@ -161,8 +161,8 @@ def start_recording(data):
         n_entries = data["n"]
     if ("t" in data) and (type(data["t"]) is int):
         n_sec = data["t"]
-    if ("p" in data) and (type(data["p"]) is bool):
-        perm = data["p"]
+    if ("perm" in data) and (type(data["perm"]) is bool):
+        perm = data["perm"]
 
         # If we have a permanent data request, make sure the user has
         #   mounted a permanent location
@@ -344,13 +344,22 @@ def plot_recording(data):
 
         An example plots field would look like:
             "plots": [
-                [
-                    ["x[0]", ["joint_0", "joint_1"], "label0"],
-                ],
-                [
-                    ["x[1]", ["joint_0", "joint_1"], "label1"],
-                    ["x[2]", ["joint_0", "joint_1"], "label2"],
-                ],
+                {
+                    "data": [
+                        ["x[0]", ["joint_0", "joint_1"], "label0"],
+                    ],
+                    "title": "Some Title",
+                    "y_label": "Some Y Label",
+                    "x_label": "Some X Label",
+                    "legend": true/false,
+                },
+                {
+                    "data": [
+                        ["x[1]", ["joint_0", "joint_1"], "label1"],
+                        ["x[2]", ["joint_0", "joint_1"], "label2"],
+                    ],
+                    ...
+                }
             ]
     start: Entry index to start the plot at
     stop: Entry index to stop the plot at
@@ -396,12 +405,10 @@ def plot_recording(data):
         x_data = [int(entry[0].split('-')[0]) for entry in result]
         x_label = "Redis Timestamp (ms)"
 
+    # Turn the x data into a numpy array and subtract off the first item
+    #   so that the scale is reasonable
     x_data = np.array(x_data)
     x_data -= x_data[0]
-
-    # Create the x-label for the data. If none is passed then we'll
-    #   just use the redis timestamp, otherwise the user will give us a lambda
-    #   for an entire
 
     # Convert the input data to lambdas
     figures = []
@@ -411,8 +418,14 @@ def plot_recording(data):
         lambdas = []
         total_lines = 0
 
+        # Get the plot data
+        if ("data" not in plot) or (type(plot["data"]) is not list):
+            return Response(err_code=8, err_str="Each plot must have a data list")
+
+        plot_data = plot["data"]
+
         # Make the lambda
-        for val in plot:
+        for val in plot_data:
 
             # Make sure the length of the array is proper
             if ((len(val) < 2) or (len(val) > 3)):
@@ -442,7 +455,7 @@ def plot_recording(data):
 
         # Now we want to preallocate the data for the plot. It should be a
         #   matrix that's n-dimensional by lambda-key pair and entry
-        data = np.zeros((total_lines, n_results))
+        to_plot = np.zeros((total_lines, n_results))
 
         # And finally we want to loop over all of the data
         for i, result in enumerate(result):
@@ -450,7 +463,7 @@ def plot_recording(data):
             idx = 0
             for (l, keys, label) in lambdas:
                 for key in keys:
-                    data[idx][i] = l(result[1][key])
+                    to_plot[idx][i] = l(result[1][key])
                     idx += 1
 
         # Now, we can go ahead and make the figure
@@ -461,11 +474,21 @@ def plot_recording(data):
         idx = 0
         for (l, keys, label) in lambdas:
             for key in keys:
-                plt.plot(x_data, data[idx,:], label=label)
+                plt.plot(x_data, to_plot[idx,:], label=label)
+                idx += 1
 
-        # Make the title and x label
-        plt.title("Plot {}".format(plot_n))
-        plt.xlabel(x_label)
+        # Make the title, x label, y label and legend
+        title = plot.get("title", "Plot {}".format(plot_n))
+        plt.title("Recording {} - {}".format(data["name"], title))
+
+        # Make the x label
+        plt.xlabel(plot.get("x_label", x_label))
+
+        # Make the y label
+        plt.ylabel(plot.get("y_label", "Value"))
+
+        if plot.get("legend", True):
+            plt.legend()
 
     # Draw the new plot
     plt.show()
@@ -480,7 +503,7 @@ if __name__ == '__main__':
     elem.command_add("wait", wait_recording, timeout=60000, deserialize=True)
     elem.command_add("list", list_recordings, timeout=1000)
     elem.command_add("get", get_recording, timeout=1000, deserialize=True)
-    elem.command_add("plot", plot_recording, timeout=60000, deserialize=True)
+    elem.command_add("plot", plot_recording, timeout=1000000, deserialize=True)
 
     # Want to launch the plot thread s.t. our plot API can return quickly
 
