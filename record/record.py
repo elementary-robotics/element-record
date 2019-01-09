@@ -478,8 +478,8 @@ def plot_recording(data):
                 idx += 1
 
         # Make the title, x label, y label and legend
-        title = plot.get("title", "Plot {}".format(plot_n))
-        plt.title("Recording {} - {}".format(data["name"], title))
+        title = "Recording-{}-{}".format(data["name"], plot.get("title", "Plot {}".format(plot_n)))
+        plt.title(title)
 
         # Make the x label
         plt.xlabel(plot.get("x_label", x_label))
@@ -487,11 +487,19 @@ def plot_recording(data):
         # Make the y label
         plt.ylabel(plot.get("y_label", "Value"))
 
+        # Make the legend
         if plot.get("legend", True):
             plt.legend()
 
+        # If we are supposed to save the figures, do so
+        if data.get("save", False):
+            fig.savefig(os.path.join(
+                PERM_RECORDING_LOC if data.get("perm", False) else TEMP_RECORDING_LOC,
+                title))
+
     # Draw the new plot
-    plt.show()
+    if data.get("show", True):
+        plt.show()
 
     return Response("Success", serialize=True)
 
