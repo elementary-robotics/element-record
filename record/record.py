@@ -10,6 +10,7 @@ import msgpack
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+import math
 
 # Where to store temporary recordings
 TEMP_RECORDING_LOC = "/shared"
@@ -512,15 +513,19 @@ def csv_recording(data):
     name: required. Recording name
     perm: Optional, default false. Whether to save the files in the permanent
         or temporary location. Will also
-    lambdas: Optional. Dictionary of key : lambda values to convert keys
+    lambdas: Optional. Multi-typed, either dictionary or string.
+        If dictionary, Dictionary of key : lambda values to convert keys
         into an iterable. Each key will get its own CSV sheet and each
         column will be an iterable from the value returned. Lambda will be
         lambda: val
+        If string, same as above but applied to all keys
     msgpack: Optional, default false. Will use msgpack to deserialize the
         key data before passing it to the lambda or attempting to iterate
         over it.
     x: Optional, default uses redis ID. Specify a lambda on the entry
         to generate the "x" column (column 0) of the CSV file
+    desc: Optional. Description to add to filename s.t. it doesn't overwrite
+        pre-existing data
     '''
     result = _get_recording(data)
     if type(result) is not list:
@@ -529,14 +534,15 @@ def csv_recording(data):
     # If we got a result then we want to go ahead and make a CSV file for
     #   each key
     files = {}
+    desc = data.get("desc", "")
     for key in result[0][1]:
         filename = os.path.join(
             PERM_RECORDING_LOC if data.get("perm", False) else TEMP_RECORDING_LOC,
-            "{}-{}.csv".format(data["name"], key))
+            "{}-{}-{}.csv".format(data["name"], desc, key))
         try:
             files[key] = open(filename, "w")
         except:
-            return Response(err_code=4, err_str="Failed to open file {}".format(filename))
+            return Response(err_code=4, err_str="Failed to open file {}".format(filename), serialize=True)
 
     # And then loop over the data and write to the file
     x_lambda = data.get("x", None)
@@ -544,16 +550,29 @@ def csv_recording(data):
         try:
             x_lambda = eval("lambda entry: " + x_lambda)
         except:
-            return Response(err_code=5, err_str="Failed to convert {} to lambda".format(x_lambda))
+            return Response(err_code=5, err_str="Failed to convert {} to lambda".format(x_lambda), serialize=True)
 
     # Get the general list of lambdas
     lambdas = data.get("lambdas", None)
     if lambdas is not None:
-        for key in lambdas:
+        if type(lambdas) is dict:
+            for key in lambdas:
+                try:
+                    lambdas[key] = eval("lambda x: " + lambdas[key])
+                except:
+                    return Response(err_code=6, err_str="Failed to convert {} to lambda".format(lambdas[key]), serialize=True)
+        elif type(lambdas) is str:
             try:
-                lambdas[key] = eval("lambda val: " + lambdas[key])
+                l_val = eval("lambda x: " + lambdas)
             except:
-                return Response(err_code=6, err_str="Failed to convert {} to lambda".format(lambdas[key]))
+                return Response(err_code=6, err_str="Failed to convert {} to lambda".format(lambdas), serialize=True)
+
+            # Make a dictionary with the same lambda for each key
+            lambdas = {}
+            for key in result[0][1]:
+                lambdas[key] = l_val
+        else:
+            return Respose(err_code=7, err_str="Lambdas argument must be dict or string", serialize=True)
 
     # Loop over the data
     for (redis_id, entry) in result:
