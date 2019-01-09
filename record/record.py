@@ -431,7 +431,7 @@ def plot_recording(data):
 
             # Make sure the length of the array is proper
             if ((len(val) < 2) or (len(val) > 3)):
-                return Response(err_code=8, err_str="Each plot value should have 2 or 3 items", serialize=True)
+                return Response(err_code=8, err_str="plot value {} does not have 2 or 3 items".format(val), serialize=True)
 
             # Try to make the lambda from the first one
             try:
@@ -476,7 +476,7 @@ def plot_recording(data):
         idx = 0
         for (l, keys, label) in lambdas:
             for key in keys:
-                plt.plot(x_data, to_plot[idx,:], label=label)
+                plt.plot(x_data, to_plot[idx,:], label=label + "-" + key)
                 idx += 1
 
         # Make the title, x label, y label and legend
