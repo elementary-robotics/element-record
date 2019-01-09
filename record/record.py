@@ -10,6 +10,7 @@ import msgpack
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+import math
 
 # Where to store temporary recordings
 TEMP_RECORDING_LOC = "/shared"
@@ -105,8 +106,10 @@ def record_fn(name, n_entries, n_sec, perm, element, stream):
         last_id = data[-1]["id"]
 
     # Once we're out of here we want to note that we're no longer
-    #   active in the global system
-    thread = active_recordings.pop(name)
+    #   active in the global system. It might be that someone else popped
+    #   it out through already in the "stop" command
+    if name in active_recordings:
+        thread = active_recordings.pop(name)
 
     # And we want to close the file
     record_file.close()
@@ -202,7 +205,7 @@ def stop_recording(data):
     # Wait for the recording thread to finish
     thread.join()
 
-    return Response("Success")
+    return Response("Success", serialize=True)
 
 def wait_recording(data):
     '''
@@ -239,7 +242,7 @@ def list_recordings(data):
 
             # If it ends with our extension, then add it
             if filename.endswith(RECORDING_EXTENSION):
-                recordings.append(filename.strip(RECORDING_EXTENSION))
+                recordings.append(os.path.splitext(filename)[0])
 
     return Response(recordings, serialize=True)
 
@@ -429,7 +432,7 @@ def plot_recording(data):
 
             # Make sure the length of the array is proper
             if ((len(val) < 2) or (len(val) > 3)):
-                return Response(err_code=8, err_str="Each plot value should have 2 or 3 items", serialize=True)
+                return Response(err_code=8, err_str="plot value {} does not have 2 or 3 items".format(val), serialize=True)
 
             # Try to make the lambda from the first one
             try:
@@ -458,12 +461,12 @@ def plot_recording(data):
         to_plot = np.zeros((total_lines, n_results))
 
         # And finally we want to loop over all of the data
-        for i, result in enumerate(result):
+        for i, val in enumerate(result):
 
             idx = 0
             for (l, keys, label) in lambdas:
                 for key in keys:
-                    to_plot[idx][i] = l(result[1][key])
+                    to_plot[idx][i] = l(val[1][key])
                     idx += 1
 
         # Now, we can go ahead and make the figure
@@ -474,7 +477,7 @@ def plot_recording(data):
         idx = 0
         for (l, keys, label) in lambdas:
             for key in keys:
-                plt.plot(x_data, to_plot[idx,:], label=label)
+                plt.plot(x_data, to_plot[idx,:], label=label + "-" + key)
                 idx += 1
 
         # Make the title, x label, y label and legend
@@ -510,15 +513,19 @@ def csv_recording(data):
     name: required. Recording name
     perm: Optional, default false. Whether to save the files in the permanent
         or temporary location. Will also
-    lambdas: Optional. Dictionary of key : lambda values to convert keys
+    lambdas: Optional. Multi-typed, either dictionary or string.
+        If dictionary, Dictionary of key : lambda values to convert keys
         into an iterable. Each key will get its own CSV sheet and each
         column will be an iterable from the value returned. Lambda will be
         lambda: val
+        If string, same as above but applied to all keys
     msgpack: Optional, default false. Will use msgpack to deserialize the
         key data before passing it to the lambda or attempting to iterate
         over it.
     x: Optional, default uses redis ID. Specify a lambda on the entry
         to generate the "x" column (column 0) of the CSV file
+    desc: Optional. Description to add to filename s.t. it doesn't overwrite
+        pre-existing data
     '''
     result = _get_recording(data)
     if type(result) is not list:
@@ -527,14 +534,15 @@ def csv_recording(data):
     # If we got a result then we want to go ahead and make a CSV file for
     #   each key
     files = {}
+    desc = data.get("desc", "")
     for key in result[0][1]:
         filename = os.path.join(
             PERM_RECORDING_LOC if data.get("perm", False) else TEMP_RECORDING_LOC,
-            "{}-{}.csv".format(data["name"], key))
+            "{}-{}-{}.csv".format(data["name"], desc, key))
         try:
             files[key] = open(filename, "w")
         except:
-            return Response(err_code=4, err_str="Failed to open file {}".format(filename))
+            return Response(err_code=4, err_str="Failed to open file {}".format(filename), serialize=True)
 
     # And then loop over the data and write to the file
     x_lambda = data.get("x", None)
@@ -542,16 +550,29 @@ def csv_recording(data):
         try:
             x_lambda = eval("lambda entry: " + x_lambda)
         except:
-            return Response(err_code=5, err_str="Failed to convert {} to lambda".format(x_lambda))
+            return Response(err_code=5, err_str="Failed to convert {} to lambda".format(x_lambda), serialize=True)
 
     # Get the general list of lambdas
     lambdas = data.get("lambdas", None)
     if lambdas is not None:
-        for key in lambdas:
+        if type(lambdas) is dict:
+            for key in lambdas:
+                try:
+                    lambdas[key] = eval("lambda x: " + lambdas[key])
+                except:
+                    return Response(err_code=6, err_str="Failed to convert {} to lambda".format(lambdas[key]), serialize=True)
+        elif type(lambdas) is str:
             try:
-                lambdas[key] = eval("lambda val: " + lambdas[key])
+                l_val = eval("lambda x: " + lambdas)
             except:
-                return Response(err_code=6, err_str="Failed to convert {} to lambda".format(lambdas[key]))
+                return Response(err_code=6, err_str="Failed to convert {} to lambda".format(lambdas), serialize=True)
+
+            # Make a dictionary with the same lambda for each key
+            lambdas = {}
+            for key in result[0][1]:
+                lambdas[key] = l_val
+        else:
+            return Respose(err_code=7, err_str="Lambdas argument must be dict or string", serialize=True)
 
     # Loop over the data
     for (redis_id, entry) in result:
