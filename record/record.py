@@ -420,7 +420,7 @@ def plot_recording(data):
 
         # Get the plot data
         if ("data" not in plot) or (type(plot["data"]) is not list):
-            return Response(err_code=8, err_str="Each plot must have a data list")
+            return Response(err_code=7, err_str="Each plot must have a data list", serialize=True)
 
         plot_data = plot["data"]
 
@@ -429,18 +429,18 @@ def plot_recording(data):
 
             # Make sure the length of the array is proper
             if ((len(val) < 2) or (len(val) > 3)):
-                return Response(err_code=7, err_str="Each plot value should have 2 or 3 items", serialize=True)
+                return Response(err_code=8, err_str="Each plot value should have 2 or 3 items", serialize=True)
 
             # Try to make the lambda from the first one
             try:
                 lamb = eval("lambda x: " + val[0])
             except:
-                return Response(err_code=8, err_str="Unable to make lambda from {}".format(val[0]), serialize=True)
+                return Response(err_code=9, err_str="Unable to make lambda from {}".format(val[0]), serialize=True)
 
             # Make sure each key exists in the first data item
             for key in val[1]:
                 if key not in result[0][1]:
-                    return Response(err_code=9, err_str="Key {} not in data".format(key), serialize=True)
+                    return Response(err_code=10, err_str="Key {} not in data".format(key), serialize=True)
 
             # Add the number of keys in this lambda to the total number of lines
             total_lines += len(val[1])
@@ -503,6 +503,89 @@ def plot_recording(data):
 
     return Response("Success", serialize=True)
 
+def csv_recording(data):
+    '''
+    Converts a recording to CSV. Takes a msgpack'd object with the following
+    parameters
+    name: required. Recording name
+    perm: Optional, default false. Whether to save the files in the permanent
+        or temporary location. Will also
+    lambdas: Optional. Dictionary of key : lambda values to convert keys
+        into an iterable. Each key will get its own CSV sheet and each
+        column will be an iterable from the value returned. Lambda will be
+        lambda: val
+    msgpack: Optional, default false. Will use msgpack to deserialize the
+        key data before passing it to the lambda or attempting to iterate
+        over it.
+    x: Optional, default uses redis ID. Specify a lambda on the entry
+        to generate the "x" column (column 0) of the CSV file
+    '''
+    result = _get_recording(data)
+    if type(result) is not list:
+        return result
+
+    # If we got a result then we want to go ahead and make a CSV file for
+    #   each key
+    files = {}
+    for key in result[0][1]:
+        filename = os.path.join(
+            PERM_RECORDING_LOC if data.get("perm", False) else TEMP_RECORDING_LOC,
+            "{}-{}.csv".format(data["name"], key))
+        try:
+            files[key] = open(filename, "w")
+        except:
+            return Response(err_code=4, err_str="Failed to open file {}".format(filename))
+
+    # And then loop over the data and write to the file
+    x_lambda = data.get("x", None)
+    if x_lambda is not None:
+        try:
+            x_lambda = eval("lambda entry: " + x_lambda)
+        except:
+            return Response(err_code=5, err_str="Failed to convert {} to lambda".format(x_lambda))
+
+    # Get the general list of lambdas
+    lambdas = data.get("lambdas", None)
+    if lambdas is not None:
+        for key in lambdas:
+            try:
+                lambdas[key] = eval("lambda val: " + lambdas[key])
+            except:
+                return Response(err_code=6, err_str="Failed to convert {} to lambda".format(lambdas[key]))
+
+    # Loop over the data
+    for (redis_id, entry) in result:
+
+        # Get the x value to write to the file
+        if x_lambda is not None:
+            x_val = x_lambda(entry)
+        else:
+            x_val = redis_id.split('-')[0]
+
+        # For each key, write the key and its data to the file
+        for key in entry:
+
+            # Value by default is just entry[key]
+            val = entry[key]
+
+            # If we have some lambdas then we need to perhaps transform the
+            #   value in that manner
+            if lambdas is not None and key in lambdas:
+                val = lambdas[key](val)
+
+            # Make the line for the CSV, starting off with the x value
+            buff = "{},".format(x_val)
+
+            # And add each item from the iterable
+            for v in val:
+                buff += "{},".format(v)
+
+            # Finish off with a newline and write to file
+            buff += "\n"
+            files[key].write(buff)
+
+    # And note the success
+    return Response("Success", serialize=True)
 
 if __name__ == '__main__':
     elem = Element("record")
@@ -512,6 +595,7 @@ if __name__ == '__main__':
     elem.command_add("list", list_recordings, timeout=1000)
     elem.command_add("get", get_recording, timeout=1000, deserialize=True)
     elem.command_add("plot", plot_recording, timeout=1000000, deserialize=True)
+    elem.command_add("csv", csv_recording, timeout=1000, deserialize=True)
 
     # Want to launch the plot thread s.t. our plot API can return quickly
 
