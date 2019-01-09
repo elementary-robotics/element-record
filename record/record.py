@@ -105,8 +105,10 @@ def record_fn(name, n_entries, n_sec, perm, element, stream):
         last_id = data[-1]["id"]
 
     # Once we're out of here we want to note that we're no longer
-    #   active in the global system
-    thread = active_recordings.pop(name)
+    #   active in the global system. It might be that someone else popped
+    #   it out through already in the "stop" command
+    if name in active_recordings:
+        thread = active_recordings.pop(name)
 
     # And we want to close the file
     record_file.close()
@@ -202,7 +204,7 @@ def stop_recording(data):
     # Wait for the recording thread to finish
     thread.join()
 
-    return Response("Success")
+    return Response("Success", serialize=True)
 
 def wait_recording(data):
     '''
