@@ -241,7 +241,7 @@ def list_recordings(data):
 
             # If it ends with our extension, then add it
             if filename.endswith(RECORDING_EXTENSION):
-                recordings.append(filename.strip(RECORDING_EXTENSION))
+                recordings.append(os.path.splitext(filename)[0])
 
     return Response(recordings, serialize=True)
 
