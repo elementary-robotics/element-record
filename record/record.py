@@ -219,7 +219,7 @@ def wait_recording(data):
     active_recordings[data].join()
     stop_time = time.time()
 
-    return Response("Returned after {} seconds".format(stop_time - start_time))
+    return Response("Returned after {} seconds".format(stop_time - start_time), serialize=True)
 
 def list_recordings(data):
     '''
