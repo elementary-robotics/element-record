@@ -616,7 +616,7 @@ if __name__ == '__main__':
     elem.command_add("list", list_recordings, timeout=1000)
     elem.command_add("get", get_recording, timeout=1000, deserialize=True)
     elem.command_add("plot", plot_recording, timeout=1000000, deserialize=True)
-    elem.command_add("csv", csv_recording, timeout=1000, deserialize=True)
+    elem.command_add("csv", csv_recording, timeout=10000, deserialize=True)
 
     # Want to launch the plot thread s.t. our plot API can return quickly
 
