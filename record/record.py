@@ -598,8 +598,11 @@ def csv_recording(data):
             buff = "{},".format(x_val)
 
             # And add each item from the iterable
-            for v in val:
-                buff += "{},".format(v)
+            try:
+                for v in val:
+                    buff += "{},".format(v)
+            except:
+                buff += "{}".format(v)
 
             # Finish off with a newline and write to file
             buff += "\n"
