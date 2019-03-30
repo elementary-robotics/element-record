@@ -602,7 +602,7 @@ def csv_recording(data):
                 for v in val:
                     buff += "{},".format(v)
             except:
-                buff += "{}".format(v)
+                buff += "{}".format(val)
 
             # Finish off with a newline and write to file
             buff += "\n"
