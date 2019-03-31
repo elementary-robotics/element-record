@@ -1,5 +1,9 @@
 ## Record
 
+### Build Status
+
+[![CircleCI](https://circleci.com/gh/elementary-robotics/element-record.svg?style=svg&circle-token=2165af3c4fc8f3009dd936c3dc645d083c470382)](https://circleci.com/gh/elementary-robotics/element-record)
+
 ### Overview
 
 This element provides the recording functionality for the atom system. It
