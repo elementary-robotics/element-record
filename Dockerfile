@@ -2,6 +2,9 @@ FROM elementaryrobotics/atom
 
 ARG DEBIAN_FRONTEND=noninteractive
 
+# Update Dependencies
+RUN apt-get -y update
+
 # Want to copy over the contents of this repo to the code
 #	section so that we have the source
 ADD . /code
