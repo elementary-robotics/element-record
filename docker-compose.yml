@@ -13,17 +13,6 @@ services:
           nocopy: true
     command: ./launch.sh
 
-  robot:
-    container_name: record-robot
-    image: elementaryrobotics/element-robot
-    volumes:
-      - type: volume
-        source: shared
-        target: /shared
-        volume:
-          nocopy: true
-    command: tail -f /dev/null
-
   record:
     container_name: record-record
     build:
