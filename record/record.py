@@ -387,7 +387,7 @@ def plot_recording(data):
     # Get the number of results
     n_results = len(result)
     if (n_results == 0):
-        return Respose(err_code=4, err_str="0 results for recording", serialize=True)
+        return Response(err_code=4, err_str="0 results for recording", serialize=True)
 
     # We should have a list of all of the entries that we care about seeing
     #   and now for each entry need to go ahead and run all of the lambdas
@@ -572,7 +572,7 @@ def csv_recording(data):
             for key in result[0][1]:
                 lambdas[key] = l_val
         else:
-            return Respose(err_code=7, err_str="Lambdas argument must be dict or string", serialize=True)
+            return Response(err_code=7, err_str="Lambdas argument must be dict or string", serialize=True)
 
     # Loop over the data
     for (redis_id, entry) in result:
