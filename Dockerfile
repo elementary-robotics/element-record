@@ -1,4 +1,5 @@
-FROM elementaryrobotics/atom
+ARG ATOM_IMAGE=elementaryrobotics/atom:v1.7.0-stock-amd64
+FROM ${ATOM_IMAGE}
 
 ARG DEBIAN_FRONTEND=noninteractive
 
