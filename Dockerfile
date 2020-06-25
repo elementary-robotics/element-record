@@ -4,7 +4,7 @@ FROM ${ATOM_IMAGE}
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Update Dependencies
-RUN apt-get -y update
+RUN apt-get -y update && apt-get install -y build-essential python3-tk
 
 # Want to copy over the contents of this repo to the code
 #	section so that we have the source
@@ -13,7 +13,7 @@ ADD . /code
 # Here, we'll build and install the code s.t. our launch script,
 #	now located at /code/launch.sh, will launch our element/app
 WORKDIR /code
-RUN apt-get install -y python3-tk
+RUN pip3 install wheel
 RUN pip3 install -r requirements.txt
 
 #
