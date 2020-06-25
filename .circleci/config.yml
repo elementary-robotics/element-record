@@ -6,7 +6,7 @@ parameters:
     default: elementaryrobotics/atom
   atom_version:
     type: string
-    default: v1.7.0
+    default: v1.5.0
   atom_variant:
     type: string
     default: stock
