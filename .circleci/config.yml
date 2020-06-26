@@ -1,37 +1,127 @@
 version: 2.1
 
-orbs:
-  atom: elementaryrobotics/atom@0.0.1
+parameters:
+  atom_repo:
+    type: string
+    default: elementaryrobotics/atom
+  atom_version:
+    type: string
+    default: v1.5.0
+  atom_variant:
+    type: string
+    default: stock
+  dockerhub_repo:
+    type: string
+    default: elementaryrobotics/element-record
 
-jobs:
-  build:
-    executor: atom/build-classic
-    environment:
-      DOCKER_COMPOSE_SERVICE_NAME: record
-    steps:
-      - checkout
-      - atom/docker_login
-      - atom/build_and_launch:
-          file: docker-compose.yml
-          service: ${DOCKER_COMPOSE_SERVICE_NAME}
-      - atom/store_image
+orbs:
+  atom: elementaryrobotics/atom@0.1.8
 
 workflows:
   version: 2
   build-all:
     jobs:
-      - build
-      - atom/deploy-master:
-          requires:
-            - build
+
+      # Build for intel
+      - atom/build_buildx:
+          name: "build-<< matrix.platform >>"
+          matrix:
+            parameters:
+              platform: [ amd64 ]
+          image_name: << pipeline.parameters.dockerhub_repo >>
+          image_tag: build-<< pipeline.number >>
+          cache_repo: << pipeline.parameters.dockerhub_repo >>
+          cache_tag: cache
+          build_args: --build-arg ATOM_IMAGE=<< pipeline.parameters.atom_repo >>:<< pipeline.parameters.atom_version >>-<< pipeline.parameters.atom_variant >>-<< matrix.platform >>
           filters:
-            branches:
-              only:
-                - master
-      - atom/deploy-dev:
+            tags:
+              only: /.*/
+
+      # Test
+      - atom/test:
+          name: "test-<< matrix.platform >>"
+          matrix:
+            parameters:
+              platform: [ amd64 ]
+          test_image: << pipeline.parameters.dockerhub_repo >>
+          test_tag: build-<< pipeline.number >>
+          atom_version: << pipeline.parameters.atom_version >>
+          compose_file: .circleci/docker-compose.yml
+          container_name: test-container
+          container_test_dir: /code
+          test_cmd: echo "write some tests!"
           requires:
-            - build
+            - build-<< matrix.platform >>
+          filters:
+            tags:
+              only: /.*/
+
+      # Deploy development
+      - atom/deploy:
+          name: "deploy-development-<< matrix.platform >>"
+          source_image: << pipeline.parameters.dockerhub_repo >>
+          source_tag: build-<< pipeline.number >>
+          target_image: << pipeline.parameters.dockerhub_repo >>
+          target_tag: development-<< pipeline.number >>
+          matrix:
+            parameters:
+              platform: [ amd64 ]
+          requires:
+            - build-<< matrix.platform >>
           filters:
             branches:
               ignore:
                 - master
+
+      # Deploy Master
+      - atom/deploy:
+          name: "deploy-master-<< matrix.platform >>"
+          source_image: << pipeline.parameters.dockerhub_repo >>
+          source_tag: build-<< pipeline.number >>
+          target_image: << pipeline.parameters.dockerhub_repo >>
+          target_tag: master-<< pipeline.number >>
+          matrix:
+            parameters:
+              platform: [ amd64 ]
+          requires:
+            - build-<< matrix.platform >>
+          filters:
+            branches:
+              only:
+                - master
+
+      # Deploy latest
+      - atom/deploy_latest:
+          name: "deploy-latest-<< matrix.platform >>"
+          source_image: << pipeline.parameters.dockerhub_repo >>
+          source_tag: build-<< pipeline.number >>
+          target_image: << pipeline.parameters.dockerhub_repo >>
+          target_tag: ""
+          matrix:
+            parameters:
+              platform: [ amd64 ]
+          requires:
+            - build-<< matrix.platform >>
+          filters:
+            branches:
+              only:
+                - master
+
+      # Deploy tag
+      - atom/deploy:
+          name: "deploy-tag-<< matrix.platform >>"
+          source_image: << pipeline.parameters.dockerhub_repo >>
+          source_tag: build-<< pipeline.number >>
+          target_image: << pipeline.parameters.dockerhub_repo >>
+          target_tag: ${CIRCLE_TAG}
+          matrix:
+            parameters:
+              platform: [ amd64 ]
+          requires:
+            - build-<< matrix.platform >>
+          filters:
+            branches:
+              ignore:
+                - /.*/
+            tags:
+              only: /.*/

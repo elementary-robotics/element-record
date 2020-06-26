@@ -33,6 +33,8 @@ BLOCK_MS = 1000
 # Active recording threads
 active_recordings = {}
 
+ATOM_HOST=os.getenv("ATOM_HOST", None)
+
 def record_fn(name, n_entries, n_sec, perm, element, stream):
     '''
     Mainloop for a recording thread. Creates a new
@@ -42,7 +44,7 @@ def record_fn(name, n_entries, n_sec, perm, element, stream):
     global active_recordings
 
     # Make an element from the name
-    record_elem = Element("record_" + name)
+    record_elem = Element("record_" + name, host=ATOM_HOST)
 
     # Open the file for the recording
     filename = os.path.join(
@@ -612,7 +614,7 @@ def csv_recording(data):
     return Response("Success", serialize=True)
 
 if __name__ == '__main__':
-    elem = Element("record")
+    elem = Element("record", host=ATOM_HOST)
     elem.command_add("start", start_recording, timeout=1000, deserialize=True)
     elem.command_add("stop", stop_recording, timeout=1000, deserialize=True)
     elem.command_add("wait", wait_recording, timeout=60000, deserialize=True)
