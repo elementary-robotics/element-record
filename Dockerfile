@@ -4,7 +4,7 @@ FROM ${ATOM_IMAGE}
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Update Dependencies
-RUN apt-get -y update && apt-get install -y build-essential python3-tk python3-dev libpng-dev
+RUN apt-get -y update && apt-get install -y python3-tk
 
 # Want to copy over the contents of this repo to the code
 #	section so that we have the source
@@ -14,9 +14,7 @@ ADD . /code
 #	now located at /code/launch.sh, will launch our element/app
 WORKDIR /code
 RUN pip3 install wheel
-# Need to let matplotlib know it can download freetype
-ENV MPLLOCALFREETYPE=1
-#RUN pip3 install -r requirements.txt
+RUN pip3 install -r requirements.txt
 
 #
 # TODO: build code
