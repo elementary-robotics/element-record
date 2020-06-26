@@ -16,7 +16,7 @@ WORKDIR /code
 RUN pip3 install wheel
 # Need to let matplotlib know it can download freetype
 ENV MPLLOCALFREETYPE=1
-RUN pip3 install -r requirements.txt
+#RUN pip3 install -r requirements.txt
 
 #
 # TODO: build code

@@ -22,12 +22,12 @@ workflows:
   build-all:
     jobs:
 
-      # Build for intel and ARM
+      # Build for intel
       - atom/build_buildx:
           name: "build-<< matrix.platform >>"
           matrix:
             parameters:
-              platform: [ amd64, aarch64 ]
+              platform: [ amd64 ]
           image_name: << pipeline.parameters.dockerhub_repo >>
           image_tag: build-<< pipeline.number >>
           cache_repo: << pipeline.parameters.dockerhub_repo >>
@@ -42,7 +42,7 @@ workflows:
           name: "test-<< matrix.platform >>"
           matrix:
             parameters:
-              platform: [ amd64, aarch64 ]
+              platform: [ amd64 ]
           test_image: << pipeline.parameters.dockerhub_repo >>
           test_tag: build-<< pipeline.number >>
           atom_version: << pipeline.parameters.atom_version >>
@@ -65,7 +65,7 @@ workflows:
           target_tag: development-<< pipeline.number >>
           matrix:
             parameters:
-              platform: [ amd64, aarch64 ]
+              platform: [ amd64 ]
           requires:
             - build-<< matrix.platform >>
           filters:
@@ -82,7 +82,7 @@ workflows:
           target_tag: master-<< pipeline.number >>
           matrix:
             parameters:
-              platform: [ amd64, aarch64 ]
+              platform: [ amd64 ]
           requires:
             - build-<< matrix.platform >>
           filters:
@@ -99,7 +99,7 @@ workflows:
           target_tag: ""
           matrix:
             parameters:
-              platform: [ amd64, aarch64 ]
+              platform: [ amd64 ]
           requires:
             - build-<< matrix.platform >>
           filters:
@@ -116,7 +116,7 @@ workflows:
           target_tag: ${CIRCLE_TAG}
           matrix:
             parameters:
-              platform: [ amd64, aarch64 ]
+              platform: [ amd64 ]
           requires:
             - build-<< matrix.platform >>
           filters:
