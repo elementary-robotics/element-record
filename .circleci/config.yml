@@ -15,7 +15,7 @@ parameters:
     default: elementaryrobotics/element-record
 
 orbs:
-  atom: elementaryrobotics/atom@0.1.8
+  atom: elementaryrobotics/atom@0.1.9
 
 workflows:
   version: 2
@@ -71,15 +71,15 @@ workflows:
           filters:
             branches:
               ignore:
-                - master
+                - latest
 
-      # Deploy Master
+      # Deploy latest
       - atom/deploy:
-          name: "deploy-master-<< matrix.platform >>"
+          name: "deploy-latest-<< matrix.platform >>"
           source_image: << pipeline.parameters.dockerhub_repo >>
           source_tag: build-<< pipeline.number >>
           target_image: << pipeline.parameters.dockerhub_repo >>
-          target_tag: master-<< pipeline.number >>
+          target_tag: latest-<< pipeline.number >>
           matrix:
             parameters:
               platform: [ amd64 ]
@@ -88,11 +88,11 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - latest
 
-      # Deploy latest
-      - atom/deploy_latest:
-          name: "deploy-latest-<< matrix.platform >>"
+      # Deploy release
+      - atom/deploy_release:
+          name: "deploy-release-<< matrix.platform >>"
           source_image: << pipeline.parameters.dockerhub_repo >>
           source_tag: build-<< pipeline.number >>
           target_image: << pipeline.parameters.dockerhub_repo >>
@@ -105,7 +105,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - latest
 
       # Deploy tag
       - atom/deploy:
